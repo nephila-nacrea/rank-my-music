@@ -8,19 +8,19 @@ import "math"
 const K = 32
 
 type Elo struct {
-	currentRanking float64
-	score          float64 // 0 = loss, 0.5 = draw, 1 = win
+	CurrentRanking float64
+	Score          float64 // 0 = loss, 0.5 = draw, 1 = win
 }
 
 func CalculateNewRankings(eloA Elo, eloB Elo) (float64, float64) {
-	newRankA := eloA.currentRanking +
-		K*(eloA.score-ExpectedScore(
-			eloA.currentRanking, eloB.currentRanking,
+	newRankA := eloA.CurrentRanking +
+		K*(eloA.Score-ExpectedScore(
+			eloA.CurrentRanking, eloB.CurrentRanking,
 		))
 
-	newRankB := eloB.currentRanking +
-		K*(eloB.score-ExpectedScore(
-			eloB.currentRanking, eloA.currentRanking,
+	newRankB := eloB.CurrentRanking +
+		K*(eloB.Score-ExpectedScore(
+			eloB.CurrentRanking, eloA.CurrentRanking,
 		))
 
 	return newRankA, newRankB

@@ -1,9 +1,17 @@
 package track
 
 type Track struct {
-	title   string
-	artists []string
-	album   string
+	Title   string
+	Artists []string
+	Album   string
 
-	ranking float64 // Default to 1000?
+	Ranking float64 // Default to 1000?
+}
+
+func New(title string) Track {
+	return Track{
+		Title: title,
+
+		Ranking: 1000,
+	}
 }
