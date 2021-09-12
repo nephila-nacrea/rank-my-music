@@ -4,7 +4,7 @@ CREATE TABLE tracks (
     id INTEGER PRIMARY KEY,
     title,
     ranking,
-    -- It my be possible to save duplicate tracks into this table
+    -- It may be possible to save duplicate tracks into this table
     is_dupe_of
 );
 
@@ -22,14 +22,16 @@ CREATE TABLE albums (
 CREATE TABLE track_artist (
     track_id,
     artist_id,
-    FOREIGN KEY(track_id) REFERENCES tracks(id),
-    FOREIGN KEY(artist_id) REFERENCES artists(id)
+    PRIMARY KEY (track_id, artist_id),
+    FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE,
+    FOREIGN KEY(artist_id) REFERENCES artists(id) ON DELETE CASCADE
 );
 
 -- A track may appear on multiple albums (e.g. compilations)
 CREATE TABLE track_album (
     track_id,
     album_id,
-    FOREIGN KEY(track_id) REFERENCES tracks(id),
-    FOREIGN KEY(album_id) REFERENCES albums(id)
+    PRIMARY KEY (track_id, album_id),
+    FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE,
+    FOREIGN KEY(album_id) REFERENCES albums(id) ON DELETE CASCADE
 );
