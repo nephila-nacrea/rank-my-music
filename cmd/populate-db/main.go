@@ -3,13 +3,14 @@
 package main
 
 import (
+	"database/sql"
 	"log"
 	"os"
 	"path/filepath"
 
-	"example.com/rank-my-music/db"
-	"example.com/rank-my-music/track"
 	"github.com/dhowden/tag"
+	"github.com/nephila-nacrea/rank-my-music/repo"
+	"github.com/nephila-nacrea/rank-my-music/track"
 
 	_ "modernc.org/sqlite"
 )
@@ -76,21 +77,10 @@ func main() {
 
 	log.Println("Now for the database!")
 
-	db := db.New(db.DefaultDSN)
-
-	rows, err := db.Handle.Query(
-		"SELECT name FROM sqlite_master WHERE type = 'table'")
+	db, err := sql.Open("sqlite", "file:ranked_music.sqlt")
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	var name string
-	for rows.Next() {
-		if err = rows.Scan(&name); err != nil {
-			log.Fatalln(err)
-		}
-		log.Println(name)
-	}
-
-	db.PopulateDB(tracks)
+	repo.SaveTracks(db, tracks)
 }

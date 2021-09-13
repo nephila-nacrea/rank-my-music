@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"example.com/rank-my-music/elo"
-	"example.com/rank-my-music/track"
 	"github.com/dhowden/tag"
+	"github.com/nephila-nacrea/rank-my-music/elo"
+	"github.com/nephila-nacrea/rank-my-music/track"
 )
 
 func init() {

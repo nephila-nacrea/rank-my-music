@@ -1,41 +1,21 @@
-package db
+package repo
 
 import (
 	"database/sql"
 	"log"
 	"strconv"
 
-	"example.com/rank-my-music/track"
+	"github.com/nephila-nacrea/rank-my-music/track"
 )
 
-const DefaultDSN = "file:ranked_music.sqlt"
-
-type DB struct {
-	DSN    string
-	Handle *sql.DB
-}
-
-func New(dsn string) DB {
-	db, err := sql.Open("sqlite", dsn)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	log.Println("Database connected")
-
-	return DB{dsn, db}
-}
-
-func (db *DB) PopulateDB(tracks []track.Track) {
+func SaveTracks(db *sql.DB, tracks []track.Track) {
 	for _, tr := range tracks {
 		// TODO Transaction
 		// TODO Tests
 		// TODO Handle empty track names, album names etc.
 		// TODO Prevent duplicate tracks (across artist & album)
 
-		dbh := db.Handle
-
-		res, err := dbh.Exec(
+		res, err := db.Exec(
 			`INSERT INTO tracks
 			        (title, ranking)
 			 VALUES (?,?)`,
@@ -53,7 +33,7 @@ func (db *DB) PopulateDB(tracks []track.Track) {
 
 		for _, artist := range tr.Artists {
 			// Does artist already exist?
-			rows, err := dbh.Query(
+			rows, err := db.Query(
 				"SELECT id FROM artists WHERE name = ?",
 				artist,
 			)
@@ -72,7 +52,7 @@ func (db *DB) PopulateDB(tracks []track.Track) {
 			if artistID == 0 {
 				log.Println("Inserting artist " + artist)
 
-				res, err = dbh.Exec(
+				res, err = db.Exec(
 					`INSERT INTO artists
 					        (name)
 					 VALUES (?)`,
@@ -90,7 +70,7 @@ func (db *DB) PopulateDB(tracks []track.Track) {
 				log.Println("Artist ID: " + strconv.Itoa(int(artistID)))
 			}
 
-			_, err = dbh.Exec(
+			_, err = db.Exec(
 				`INSERT INTO track_artist
 				            (track_id, artist_id)
 				     VALUES (?,?)`,
@@ -103,7 +83,7 @@ func (db *DB) PopulateDB(tracks []track.Track) {
 
 		// Does album already exist?
 		// TODO Albums with the same name may exist
-		rows, err := dbh.Query(
+		rows, err := db.Query(
 			"SELECT id FROM albums WHERE title = ?",
 			tr.Album,
 		)
@@ -120,7 +100,7 @@ func (db *DB) PopulateDB(tracks []track.Track) {
 		}
 
 		if albumID == 0 {
-			res, err = dbh.Exec(
+			res, err = db.Exec(
 				`INSERT INTO albums
 				            (title)
 				     VALUES (?)`,
@@ -136,7 +116,7 @@ func (db *DB) PopulateDB(tracks []track.Track) {
 			}
 		}
 
-		_, err = dbh.Exec(
+		_, err = db.Exec(
 			`INSERT INTO track_album
 			            (track_id, album_id)
 			     VALUES (?,?)`,

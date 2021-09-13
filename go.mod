@@ -1,4 +1,4 @@
-module example.com/rank-my-music
+module github.com/nephila-nacrea/rank-my-music
 
 go 1.14
 

@@ -1,0 +1,29 @@
+package test_utils
+
+import (
+	"database/sql"
+	"io/ioutil"
+	"log"
+
+	_ "modernc.org/sqlite"
+)
+
+func DBSetup() *sql.DB {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Println("Database connected")
+
+	query, err := ioutil.ReadFile("../sql/schemas.sql")
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	if _, err := db.Exec(string(query[:])); err != nil {
+		log.Fatalln(err)
+	}
+
+	return db
+}
