@@ -9,6 +9,7 @@ import (
 )
 
 func DBSetup() *sql.DB {
+	// Memory-only database only lasts for duration of 'db' variable
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		log.Fatalln(err)
@@ -21,7 +22,7 @@ func DBSetup() *sql.DB {
 		log.Fatalln(err)
 	}
 
-	if _, err := db.Exec(string(query[:])); err != nil {
+	if _, err := db.Exec(string(query)); err != nil {
 		log.Fatalln(err)
 	}
 

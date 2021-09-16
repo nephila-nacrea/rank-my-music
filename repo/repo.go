@@ -43,6 +43,7 @@ func SaveTracks(db *sql.DB, tracks []track.Track) {
 
 			var artistID int64
 
+			// FIXME This is weird
 			for rows.Next() {
 				if err = rows.Scan(&artistID); err != nil {
 					log.Fatalln(err)
