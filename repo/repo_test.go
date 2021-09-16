@@ -34,6 +34,41 @@ func TestSaveTracks(t *testing.T) {
 			"Album 1",
 			[]string{"Artist 1", "Artist 2", "Artist 3"},
 		),
+		// // Complete duplicate
+		track.New(
+			"Title 1",
+			"Album 1",
+			[]string{"Artist 1", "Artist 2", "Artist 3"},
+		),
+		// // New title, duplicate album & artists
+		// track.New(
+		// 	"Title 2",
+		// 	"Album 1",
+		// 	[]string{"Artist 1", "Artist 2", "Artist 3"},
+		// ),
+		// // Duplicate title, new album, new artist
+		// track.New(
+		// 	"Title 1",
+		// 	"Album 2",
+		// 	[]string{"Artist 4"},
+		// ),
+		// // Duplicate title, duplicate album, new artist
+		// track.New(
+		// 	"Title 1",
+		// 	"Album 2",
+		// 	[]string{"Artist 5"},
+		// ),
+		// // Duplicate title, duplicate album, new *primary* artist
+		// track.New(
+		// 	"Title 1",
+		// 	"Album 2",
+		// 	[]string{"Artist 2", "Artist 1", "Artist 3"},
+		// ),
+
+		// TODO
+		// Empty strings
+		// Long names
+
 	}
 
 	db := test_utils.DBSetup()
@@ -129,8 +164,6 @@ func ReadDB(t *testing.T, db *sql.DB) []trackRes {
 			); err != nil {
 				t.Fatal(err)
 			}
-
-			t.Logf("%v", artist)
 
 			artists = append(artists, artist)
 		}
