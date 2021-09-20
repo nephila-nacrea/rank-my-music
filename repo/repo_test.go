@@ -2,6 +2,7 @@ package repo
 
 import (
 	"database/sql"
+	"log"
 	"reflect"
 	"testing"
 
@@ -9,22 +10,84 @@ import (
 	"github.com/nephila-nacrea/rank-my-music/track"
 )
 
-type albumRes struct {
-	id    int
-	title string
+func init() {
+	log.SetFlags(log.Llongfile)
 }
 
-type artistRes struct {
-	id   int
-	name string
-}
+func TestCheckIfDuplicateTrack(t *testing.T) {
+	db := test_utils.DBSetup()
 
-type trackRes struct {
-	id    int
-	title string
+	res, err := db.Exec(
+		`INSERT INTO tracks (title)
+		      VALUES ("Title 1")`,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	album   albumRes
-	artists []artistRes
+	trackID, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err = db.Exec(
+		`INSERT INTO albums (title)
+		      VALUES ("Album 1")`,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	albumID, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err = db.Exec(
+		`INSERT INTO artists (name)
+		      VALUES ("Artist 1")`,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	artistID1, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = db.Exec(
+		`INSERT INTO track_album (track_id, album_id)
+		      VALUES (?, ?)`,
+		trackID,
+		albumID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = db.Exec(
+		`INSERT INTO track_artist (track_id, artist_id)
+		      VALUES (?, ?)`,
+		trackID,
+		artistID1,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	inputTrack := track.Track{
+		Album:   "Album 1",
+		Artists: []string{"Artist 1"},
+		Title:   "Title 1",
+	}
+
+	expected := true
+	got := checkIfDuplicateTrack(db, inputTrack)
+
+	if expected != got {
+		t.Errorf("Expected %t, got %t", expected, got)
+	}
 }
 
 func TestSaveTracks(t *testing.T) {
@@ -34,7 +97,7 @@ func TestSaveTracks(t *testing.T) {
 			"Album 1",
 			[]string{"Artist 1", "Artist 2", "Artist 3"},
 		),
-		// // Complete duplicate
+		// Complete duplicate
 		track.New(
 			"Title 1",
 			"Album 1",
@@ -75,15 +138,15 @@ func TestSaveTracks(t *testing.T) {
 
 	SaveTracks(db, input)
 
-	expected := []trackRes{
+	expected := []trackResult{
 		{
 			id:    1,
 			title: "Title 1",
-			album: albumRes{
+			album: albumResult{
 				id:    1,
 				title: "Album 1",
 			},
-			artists: []artistRes{
+			artists: []artistResult{
 				{
 					id:   1,
 					name: "Artist 1",
@@ -100,14 +163,14 @@ func TestSaveTracks(t *testing.T) {
 		},
 	}
 
-	got := ReadDB(t, db)
+	got := readDB(t, db)
 
 	if !reflect.DeepEqual(expected, got) {
 		t.Errorf("Expected %v, got %v", expected, got)
 	}
 }
 
-func ReadDB(t *testing.T, db *sql.DB) []trackRes {
+func readDB(t *testing.T, db *sql.DB) []trackResult {
 	rows, err := db.Query(
 		`SELECT t.id,
 		        t.title,
@@ -121,11 +184,11 @@ func ReadDB(t *testing.T, db *sql.DB) []trackRes {
 		t.Fatal(err)
 	}
 
-	tracks := []trackRes{}
+	tracks := []trackResult{}
 
 	for rows.Next() {
-		var track trackRes
-		var album albumRes
+		var track trackResult
+		var album albumResult
 
 		if err = rows.Scan(
 			&track.id,
@@ -153,10 +216,10 @@ func ReadDB(t *testing.T, db *sql.DB) []trackRes {
 			t.Fatal(err)
 		}
 
-		artists := []artistRes{}
+		artists := []artistResult{}
 
 		for rowsArtist.Next() {
-			var artist artistRes
+			var artist artistResult
 
 			if rowsArtist.Scan(
 				&artist.id,

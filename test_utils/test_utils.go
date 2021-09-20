@@ -19,10 +19,12 @@ func DBSetup() *sql.DB {
 
 	query, err := ioutil.ReadFile("../sql/schemas.sql")
 	if err != nil {
+		log.Println("HERE")
 		log.Fatalln(err)
 	}
 
 	if _, err := db.Exec(string(query)); err != nil {
+		log.Println("HERE")
 		log.Fatalln(err)
 	}
 

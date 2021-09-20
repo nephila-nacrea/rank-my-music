@@ -8,63 +8,29 @@ import (
 	"github.com/nephila-nacrea/rank-my-music/track"
 )
 
-func SaveTracks(db *sql.DB, tracks []track.Track) {
-	for _, track := range tracks {
-		var trackIsDupe bool
+type albumResult struct {
+	id    int
+	title string
+}
 
-		// Get any existing data for given track title. We will do duplication
-		// checks against these.
-		type trackResult struct {
-			id    int
-			title string
+type artistResult struct {
+	id   int
+	name string
+}
 
-			album struct {
-				id    int
-				title string
-			}
-			artists []struct {
-				id   int
-				name string
-			}
-		}
-		existingTracks := []trackResult{}
+type trackResult struct {
+	id    int
+	title string
 
-		rows, err := db.Query(
-			`SELECT t.id,
-			        t.title,
-			        al.id,
-			        al.title
-			   FROM tracks t
-			   JOIN track_album tal ON tal.track_id = t.id
-			   JOIN albums al ON al.id = tal.album_id
-			  WHERE t.title = ?`,
-			track.Title,
-		)
-		if err != nil {
-			log.Fatal(err)
-		}
+	album   albumResult
+	artists []artistResult
+}
 
-		for rows.Next() {
-			var tr trackResult
-
-			if err = rows.Scan(
-				&tr.id,
-				&tr.title,
-				&tr.album.id,
-				&tr.album.title,
-			); err != nil {
-				log.Fatal(err)
-			}
-
-			existingTracks = append(existingTracks, tr)
-		}
-
-		for _, et := range existingTracks {
-			// TODO
-		}
+func SaveTracks(db *sql.DB, inputTracks []track.Track) {
+	for _, inputTrack := range inputTracks {
+		trackIsDupe := checkIfDuplicateTrack(db, inputTrack)
 
 		if !trackIsDupe {
-
 			// TODO Transaction
 			// TODO Tests
 			// TODO Handle empty track names, album names etc.
@@ -74,8 +40,8 @@ func SaveTracks(db *sql.DB, tracks []track.Track) {
 				`INSERT INTO tracks
 			        (title, ranking)
 			 VALUES (?,?)`,
-				track.Title,
-				track.Ranking,
+				inputTrack.Title,
+				inputTrack.Ranking,
 			)
 			if err != nil {
 				log.Fatalln(err)
@@ -87,7 +53,7 @@ func SaveTracks(db *sql.DB, tracks []track.Track) {
 			}
 
 			// Insert artist if not a duplicate
-			for _, artist := range track.Artists {
+			for _, artist := range inputTrack.Artists {
 				// Does artist already exist?
 				row := db.QueryRow(
 					"SELECT id FROM artists WHERE name = ?",
@@ -99,8 +65,7 @@ func SaveTracks(db *sql.DB, tracks []track.Track) {
 				if err = row.Scan(&artistID); err != nil && err != sql.ErrNoRows {
 					log.Fatalln(err)
 				}
-
-				if artistID == 0 {
+				if err == sql.ErrNoRows {
 					log.Println("Inserting artist " + artist)
 
 					res, err = db.Exec(
@@ -137,23 +102,20 @@ func SaveTracks(db *sql.DB, tracks []track.Track) {
 			// unique for an artist.
 			row := db.QueryRow(
 				"SELECT id FROM albums WHERE title = ?",
-				track.Album,
+				inputTrack.Album,
 			)
 
 			var albumID int64
 
-			if err = row.Scan(&albumID); err != nil {
+			if err = row.Scan(&albumID); err != nil && err != sql.ErrNoRows {
 				log.Fatalln(err)
 			}
-
-			// Check against artists
-
-			if albumID == 0 {
+			if err == sql.ErrNoRows {
 				res, err = db.Exec(
 					`INSERT INTO albums
 				            (title)
 				     VALUES (?)`,
-					track.Album,
+					inputTrack.Album,
 				)
 				if err != nil {
 					log.Fatalln(err)
@@ -176,4 +138,83 @@ func SaveTracks(db *sql.DB, tracks []track.Track) {
 			}
 		}
 	}
+}
+
+func checkIfDuplicateTrack(db *sql.DB, inputTrack track.Track) bool {
+	var trackIsDupe bool
+
+	// Get any existing data for given track title. We will do duplication
+	// checks against these.
+	existingTracks := []trackResult{}
+
+	rows, err := db.Query(
+		`SELECT t.id,
+		        t.title,
+		        al.id,
+		        al.title
+		   FROM tracks t
+		   JOIN track_album tal ON tal.track_id = t.id
+		   JOIN albums al ON al.id = tal.album_id
+		  WHERE t.title = ?`,
+		inputTrack.Title,
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for rows.Next() {
+		var tr trackResult
+
+		if err = rows.Scan(
+			&tr.id,
+			&tr.title,
+			&tr.album.id,
+			&tr.album.title,
+		); err != nil {
+			log.Fatal(err)
+		}
+
+		existingTracks = append(existingTracks, tr)
+	}
+
+	for _, et := range existingTracks {
+		// Get artists
+		rows, err = db.Query(
+			`SELECT ar.name
+			   FROM artists ar
+			   JOIN track_artist tar ON tar.artist_id = ar.id
+			  WHERE tar.track_id = ?`,
+			et.id,
+		)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		var existingArtists = map[string]bool{}
+
+		for rows.Next() {
+			var name string
+			if err = rows.Scan(
+				&name,
+			); err != nil {
+				log.Fatal(err)
+			}
+
+			existingArtists[name] = true
+		}
+
+		var hasSharedArtist bool
+		for _, inputArtist := range inputTrack.Artists {
+			if _, exists := existingArtists[inputArtist]; exists {
+				hasSharedArtist = true
+			}
+		}
+
+		if inputTrack.Album == et.album.title &&
+			hasSharedArtist {
+			trackIsDupe = true
+		}
+	}
+
+	return trackIsDupe
 }
