@@ -19,7 +19,7 @@ func TestCheckIfDuplicateTrack(t *testing.T) {
 
 	res, err := db.Exec(
 		`INSERT INTO tracks (title)
-		      VALUES ("Title 1")`,
+		 VALUES ("Title 1")`,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +32,7 @@ func TestCheckIfDuplicateTrack(t *testing.T) {
 
 	res, err = db.Exec(
 		`INSERT INTO albums (title)
-		      VALUES ("Album 1")`,
+		 VALUES ("Album 1")`,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -43,22 +43,9 @@ func TestCheckIfDuplicateTrack(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err = db.Exec(
-		`INSERT INTO artists (name)
-		      VALUES ("Artist 1")`,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	artistID1, err := res.LastInsertId()
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	_, err = db.Exec(
 		`INSERT INTO track_album (track_id, album_id)
-		      VALUES (?, ?)`,
+		 VALUES (?, ?)`,
 		trackID,
 		albumID,
 	)
@@ -66,27 +53,102 @@ func TestCheckIfDuplicateTrack(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = db.Exec(
-		`INSERT INTO track_artist (track_id, artist_id)
-		      VALUES (?, ?)`,
-		trackID,
-		artistID1,
-	)
-	if err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"Artist 1", "Artist 2", "Artist 3"} {
+		res, err = db.Exec(
+			`INSERT INTO artists (name)
+		     VALUES (?)`,
+			name,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		artistID, err := res.LastInsertId()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = db.Exec(
+			`INSERT INTO track_artist (track_id, artist_id)
+		     VALUES (?, ?)`,
+			trackID,
+			artistID,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	inputTrack := track.Track{
-		Album:   "Album 1",
-		Artists: []string{"Artist 1"},
-		Title:   "Title 1",
+	testCases := []struct {
+		testName   string
+		inputTrack track.Track
+		expected   bool
+	}{
+		{
+			"Duplicate track title, album, artist",
+			track.Track{
+				Album:   "Album 1",
+				Artists: []string{"Artist 1"},
+				Title:   "Title 1",
+			},
+			true,
+		},
+		{
+			"Duplicate track title, album; multiple artists with one dupe",
+			track.Track{
+				Album: "Album 1",
+				Artists: []string{
+					"Artist 4", "Artist 5", "Artist 6", "Artist 1",
+				},
+				Title: "Title 1",
+			},
+			true,
+		},
+
+		{
+			"Different track title",
+			track.Track{
+				Album:   "Album 1",
+				Artists: []string{"Artist 1"},
+				Title:   "Title 2",
+			},
+			false,
+		},
+		{
+			"Different album title",
+			track.Track{
+				Album:   "Album 2",
+				Artists: []string{"Artist 1"},
+				Title:   "Title 1",
+			},
+			false,
+		},
+		{
+			"Different artist (single)",
+			track.Track{
+				Album:   "Album 1",
+				Artists: []string{"Artist 4"},
+				Title:   "Title 1",
+			},
+			false,
+		},
+		{
+			"Different artists (multiple)",
+			track.Track{
+				Album:   "Album 1",
+				Artists: []string{"Artist 4", "Artist 5", "Artist 6"},
+				Title:   "Title 1",
+			},
+			false,
+		},
 	}
 
-	expected := true
-	got := checkIfDuplicateTrack(db, inputTrack)
-
-	if expected != got {
-		t.Errorf("Expected %t, got %t", expected, got)
+	for _, tc := range testCases {
+		got := checkIfDuplicateTrack(db, tc.inputTrack)
+		if tc.expected != got {
+			t.Logf(tc.testName)
+			t.Errorf("Expected %t, got %t", tc.expected, got)
+		}
 	}
 }
 
