@@ -165,19 +165,26 @@ func TestSaveTracks(t *testing.T) {
 			"Album 1",
 			[]string{"Artist 1", "Artist 2", "Artist 3"},
 		),
-		// // New title, duplicate album & artists
-		// track.New(
-		// 	"Title 2",
-		// 	"Album 1",
-		// 	[]string{"Artist 1", "Artist 2", "Artist 3"},
-		// ),
-		// // Duplicate title, new album, new artist
-		// track.New(
-		// 	"Title 1",
-		// 	"Album 2",
-		// 	[]string{"Artist 4"},
-		// ),
-		// // Duplicate title, duplicate album, new artist
+		// New track title, duplicate album title & artists (multiple)
+		track.New(
+			"Title 2",
+			"Album 1",
+			[]string{"Artist 1", "Artist 2", "Artist 3"},
+		),
+		// New track title, duplicate album title & artist (single)
+		track.New(
+			"Title 3",
+			"Album 1",
+			[]string{"Artist 1"},
+		),
+		// Duplicate track title, new album title, new artist
+		track.New(
+			"Title 1",
+			"Album 2",
+			[]string{"Artist 4"},
+		),
+		// TODO
+		// // Duplicate track title, duplicate album title, new artist
 		// track.New(
 		// 	"Title 1",
 		// 	"Album 2",
@@ -223,12 +230,76 @@ func TestSaveTracks(t *testing.T) {
 				},
 			},
 		},
+		{
+			id:    2,
+			title: "Title 2",
+			album: albumResult{
+				id:    1,
+				title: "Album 1",
+			},
+			artists: []artistResult{
+				{
+					id:   1,
+					name: "Artist 1",
+				},
+				{
+					id:   2,
+					name: "Artist 2",
+				},
+				{
+					id:   3,
+					name: "Artist 3",
+				},
+			},
+		},
+		{
+			id:    3,
+			title: "Title 3",
+			album: albumResult{
+				id:    1,
+				title: "Album 1",
+			},
+			artists: []artistResult{
+				{
+					id:   1,
+					name: "Artist 1",
+				},
+			},
+		},
+		{
+			id:    4,
+			title: "Title 1",
+			album: albumResult{
+				id:    2,
+				title: "Album 2",
+			},
+			artists: []artistResult{
+				{
+					id:   4,
+					name: "Artist 4",
+				},
+			},
+		},
+		// {
+		// 	id:    5,
+		// 	title: "Title 1",
+		// 	album: albumResult{
+		// 		id:    3,
+		// 		title: "Album 2",
+		// 	},
+		// 	artists: []artistResult{
+		// 		{
+		// 			id:   5,
+		// 			name: "Artist 5",
+		// 		},
+		// 	},
+		// },
 	}
 
 	got := readDB(t, db)
 
 	if !reflect.DeepEqual(expected, got) {
-		t.Errorf("Expected %v, got %v", expected, got)
+		t.Errorf("\nExpected:\n%#v\ngot:\n%#v", expected, got)
 	}
 }
 
@@ -240,7 +311,8 @@ func readDB(t *testing.T, db *sql.DB) []trackResult {
 		        al.title
 		  FROM tracks t
 		  JOIN track_album tal ON tal.track_id = t.id
-		  JOIN albums al ON al.id = tal.album_id`,
+		  JOIN albums al ON al.id = tal.album_id
+	      ORDER BY t.id`,
 	)
 	if err != nil {
 		t.Fatal(err)
