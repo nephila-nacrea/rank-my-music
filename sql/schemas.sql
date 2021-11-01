@@ -22,6 +22,7 @@ CREATE TABLE albums (
 CREATE TABLE track_artist (
     track_id,
     artist_id,
+    is_primary_artist,
     PRIMARY KEY (track_id, artist_id),
     FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE,
     FOREIGN KEY(artist_id) REFERENCES artists(id) ON DELETE CASCADE

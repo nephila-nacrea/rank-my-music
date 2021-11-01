@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"strconv"
+	"strings"
 
 	"github.com/nephila-nacrea/rank-my-music/track"
 )
@@ -36,10 +37,12 @@ func SaveTracks(db *sql.DB, inputTracks []track.Track) {
 			// TODO Handle empty track names, album names etc.
 			// TODO Prevent duplicate tracks (across artist & album)
 
+			log.Println("Inserting track: " + inputTrack.Title)
+
 			res, err := db.Exec(
 				`INSERT INTO tracks
-			        (title, ranking)
-			 VALUES (?,?)`,
+				        (title, ranking)
+				 VALUES (?,?)`,
 				inputTrack.Title,
 				inputTrack.Ranking,
 			)
@@ -52,8 +55,10 @@ func SaveTracks(db *sql.DB, inputTracks []track.Track) {
 				log.Fatalln(err)
 			}
 
+			var artistIDs []int64
+
 			// Insert artist if not a duplicate
-			for _, artist := range inputTrack.Artists {
+			for idx, artist := range inputTrack.Artists {
 				// Does artist already exist?
 				row := db.QueryRow(
 					"SELECT id FROM artists WHERE name = ?",
@@ -66,12 +71,12 @@ func SaveTracks(db *sql.DB, inputTracks []track.Track) {
 					log.Fatalln(err)
 				}
 				if err == sql.ErrNoRows {
-					log.Println("Inserting artist " + artist)
+					log.Println("Inserting artist: " + artist)
 
 					res, err = db.Exec(
 						`INSERT INTO artists
-					        (name)
-					 VALUES (?)`,
+						        (name)
+						 VALUES (?)`,
 						artist,
 					)
 					if err != nil {
@@ -83,26 +88,38 @@ func SaveTracks(db *sql.DB, inputTracks []track.Track) {
 						log.Fatalln(err)
 					}
 
-					log.Println("Artist ID: " + strconv.Itoa(int(artistID)))
 				}
+
+				log.Println("Artist ID: " + strconv.Itoa(int(artistID)))
 
 				_, err = db.Exec(
 					`INSERT INTO track_artist
-				            (track_id, artist_id)
-				     VALUES (?,?)`,
-					trackID, artistID,
+				            (track_id, artist_id, is_primary_artist)
+				     VALUES (?,?,?)`,
+					trackID,
+					artistID,
+					idx == 0, // Assume primary artist is first one in list
 				)
 				if err != nil {
 					log.Fatalln(err)
 				}
+
+				artistIDs = append(artistIDs, artistID)
 			}
 
 			// Insert album if not a duplicate. It is possible for different
 			// albums to have the same name, but we assume album names to be
-			// unique for an artist.
+			// unique per primary artist.
 			row := db.QueryRow(
-				"SELECT id FROM albums WHERE title = ?",
+				`SELECT al.id
+				   FROM albums al
+				   JOIN track_album tal ON tal.album_id = al.id
+				   JOIN tracks t ON t.id = tal.track_id
+				   JOIN track_artist tar ON tar.track_id = t.id
+				  WHERE al.title = ?
+				    AND tar.artist_id != ?`,
 				inputTrack.Album,
+				artistIDs[0],
 			)
 
 			var albumID int64
@@ -126,6 +143,8 @@ func SaveTracks(db *sql.DB, inputTracks []track.Track) {
 					log.Fatalln(err)
 				}
 			}
+
+			log.Println("Album ID: " + strconv.Itoa(int(albumID)))
 
 			_, err = db.Exec(
 				`INSERT INTO track_album
@@ -213,6 +232,15 @@ func checkIfDuplicateTrack(db *sql.DB, inputTrack track.Track) bool {
 		if inputTrack.Album == et.album.title &&
 			hasSharedArtist {
 			trackIsDupe = true
+
+			log.Println("Track '" +
+				inputTrack.Title +
+				"' is a dupe for album '" +
+				inputTrack.Album +
+				"' / artist(s) '" +
+				strings.Join(inputTrack.Artists, ", ") +
+				"'",
+			)
 		}
 	}
 

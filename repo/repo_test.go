@@ -153,6 +153,8 @@ func TestCheckIfDuplicateTrack(t *testing.T) {
 }
 
 func TestSaveTracks(t *testing.T) {
+	db := test_utils.DBSetup()
+
 	input := []track.Track{
 		track.New(
 			"Title 1",
@@ -165,45 +167,13 @@ func TestSaveTracks(t *testing.T) {
 			"Album 1",
 			[]string{"Artist 1", "Artist 2", "Artist 3"},
 		),
-		// New track title, duplicate album title & artists (multiple)
-		track.New(
-			"Title 2",
-			"Album 1",
-			[]string{"Artist 1", "Artist 2", "Artist 3"},
-		),
-		// New track title, duplicate album title & artist (single)
-		track.New(
-			"Title 3",
-			"Album 1",
-			[]string{"Artist 1"},
-		),
-		// Duplicate track title, new album title, new artist
+		// Complete duplicate with non-primary artists switched
 		track.New(
 			"Title 1",
-			"Album 2",
-			[]string{"Artist 4"},
+			"Album 1",
+			[]string{"Artist 1", "Artist 3", "Artist 2"},
 		),
-		// TODO
-		// // Duplicate track title, duplicate album title, new artist
-		// track.New(
-		// 	"Title 1",
-		// 	"Album 2",
-		// 	[]string{"Artist 5"},
-		// ),
-		// // Duplicate title, duplicate album, new *primary* artist
-		// track.New(
-		// 	"Title 1",
-		// 	"Album 2",
-		// 	[]string{"Artist 2", "Artist 1", "Artist 3"},
-		// ),
-
-		// TODO
-		// Empty strings
-		// Long names
-
 	}
-
-	db := test_utils.DBSetup()
 
 	SaveTracks(db, input)
 
@@ -230,7 +200,29 @@ func TestSaveTracks(t *testing.T) {
 				},
 			},
 		},
-		{
+	}
+
+	got := readDB(t, db)
+	if !reflect.DeepEqual(expected, got) {
+		t.Errorf("\nExpected:\n%#v\ngot:\n%#v", expected, got)
+	}
+
+	//////////////////////////////////////////////////////////////////////////
+
+	// New track title, duplicate album title & artists (multiple)
+	input = []track.Track{
+		track.New(
+			"Title 2",
+			"Album 1",
+			[]string{"Artist 1", "Artist 2", "Artist 3"},
+		),
+	}
+
+	SaveTracks(db, input)
+
+	expected = append(
+		expected,
+		trackResult{
 			id:    2,
 			title: "Title 2",
 			album: albumResult{
@@ -252,7 +244,29 @@ func TestSaveTracks(t *testing.T) {
 				},
 			},
 		},
-		{
+	)
+
+	got = readDB(t, db)
+	if !reflect.DeepEqual(expected, got) {
+		t.Errorf("\nExpected:\n%#v\ngot:\n%#v", expected, got)
+	}
+
+	//////////////////////////////////////////////////////////////////////////
+
+	// New track title, duplicate album title & artist (single)
+	input = []track.Track{
+		track.New(
+			"Title 3",
+			"Album 1",
+			[]string{"Artist 1"},
+		),
+	}
+
+	SaveTracks(db, input)
+
+	expected = append(
+		expected,
+		trackResult{
 			id:    3,
 			title: "Title 3",
 			album: albumResult{
@@ -266,7 +280,29 @@ func TestSaveTracks(t *testing.T) {
 				},
 			},
 		},
-		{
+	)
+
+	got = readDB(t, db)
+	if !reflect.DeepEqual(expected, got) {
+		t.Errorf("\nExpected:\n%#v\ngot:\n%#v", expected, got)
+	}
+
+	//////////////////////////////////////////////////////////////////////////
+
+	// Duplicate track title, new album title, new artist
+	input = []track.Track{
+		track.New(
+			"Title 1",
+			"Album 2",
+			[]string{"Artist 4"},
+		),
+	}
+
+	SaveTracks(db, input)
+
+	expected = append(
+		expected,
+		trackResult{
 			id:    4,
 			title: "Title 1",
 			album: albumResult{
@@ -280,27 +316,159 @@ func TestSaveTracks(t *testing.T) {
 				},
 			},
 		},
-		// {
-		// 	id:    5,
-		// 	title: "Title 1",
-		// 	album: albumResult{
-		// 		id:    3,
-		// 		title: "Album 2",
-		// 	},
-		// 	artists: []artistResult{
-		// 		{
-		// 			id:   5,
-		// 			name: "Artist 5",
-		// 		},
-		// 	},
-		// },
-	}
+	)
 
-	got := readDB(t, db)
-
+	got = readDB(t, db)
 	if !reflect.DeepEqual(expected, got) {
 		t.Errorf("\nExpected:\n%#v\ngot:\n%#v", expected, got)
 	}
+
+	//////////////////////////////////////////////////////////////////////////
+
+	// Duplicate track title, duplicate album title, new primary artist
+	// => different album with same name as another
+	input = []track.Track{
+		track.New(
+			"Title 1",
+			"Album 2",
+			[]string{"Artist 5"},
+		),
+	}
+
+	SaveTracks(db, input)
+
+	expected = append(
+		expected,
+		trackResult{
+			id:    5,
+			title: "Title 1",
+			album: albumResult{
+				id:    3,
+				title: "Album 2",
+			},
+			artists: []artistResult{
+				{
+					id:   5,
+					name: "Artist 5",
+				},
+			},
+		},
+	)
+
+	got = readDB(t, db)
+	if !reflect.DeepEqual(expected, got) {
+		t.Errorf("\nExpected:\n%#v\ngot:\n%#v", expected, got)
+	}
+
+	// input := []track.Track{
+
+	// 	// Duplicate track title, duplicate album title, new *primary* artist
+	// 	// =>
+	// 	track.New(
+	// 		"Title 1",
+	// 		"Album 1",
+	// 		[]string{"Artist 2", "Artist 1", "Artist 3"},
+	// 	),
+
+	// 	// TODO
+	// 	// Empty strings
+	// 	// Long names
+
+	// }
+
+	// expected := []trackResult{
+	// 	{
+	// 		id:    1,
+	// 		title: "Title 1",
+	// 		album: albumResult{
+	// 			id:    1,
+	// 			title: "Album 1",
+	// 		},
+	// 		artists: []artistResult{
+	// 			{
+	// 				id:   1,
+	// 				name: "Artist 1",
+	// 			},
+	// 			{
+	// 				id:   2,
+	// 				name: "Artist 2",
+	// 			},
+	// 			{
+	// 				id:   3,
+	// 				name: "Artist 3",
+	// 			},
+	// 		},
+	// 	},
+	// 	{
+	// 		id:    2,
+	// 		title: "Title 2",
+	// 		album: albumResult{
+	// 			id:    1,
+	// 			title: "Album 1",
+	// 		},
+	// 		artists: []artistResult{
+	// 			{
+	// 				id:   1,
+	// 				name: "Artist 1",
+	// 			},
+	// 			{
+	// 				id:   2,
+	// 				name: "Artist 2",
+	// 			},
+	// 			{
+	// 				id:   3,
+	// 				name: "Artist 3",
+	// 			},
+	// 		},
+	// 	},
+	// 	{
+	// 		id:    3,
+	// 		title: "Title 3",
+	// 		album: albumResult{
+	// 			id:    1,
+	// 			title: "Album 1",
+	// 		},
+	// 		artists: []artistResult{
+	// 			{
+	// 				id:   1,
+	// 				name: "Artist 1",
+	// 			},
+	// 		},
+	// 	},
+	// 	{
+	// 		id:    4,
+	// 		title: "Title 1",
+	// 		album: albumResult{
+	// 			id:    2,
+	// 			title: "Album 2",
+	// 		},
+	// 		artists: []artistResult{
+	// 			{
+	// 				id:   4,
+	// 				name: "Artist 4",
+	// 			},
+	// 		},
+	// 	},
+	// 	{
+	// 		id:    5,
+	// 		title: "Title 1",
+	// 		album: albumResult{
+	// 			id:    3,
+	// 			title: "Album 2",
+	// 		},
+	// 		artists: []artistResult{
+	// 			{
+	// 				id:   5,
+	// 				name: "Artist 5",
+	// 			},
+	// 		},
+	// 	},
+	// }
+
+	// got := readDB(t, db)
+	// if !reflect.DeepEqual(expected, got) {
+	// 	t.Errorf("\nExpected:\n%#v\ngot:\n%#v", expected, got)
+	// }
 }
 
 func readDB(t *testing.T, db *sql.DB) []trackResult {
