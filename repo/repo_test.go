@@ -87,18 +87,19 @@ func TestCheckIfDuplicateTrack(t *testing.T) {
 		{
 			"Duplicate track title, album, artist",
 			track.Track{
-				Album:   "Album 1",
-				Artists: []string{"Artist 1"},
-				Title:   "Title 1",
+				Album:         "Album 1",
+				PrimaryArtist: "Artist 1",
+				Title:         "Title 1",
 			},
 			true,
 		},
 		{
 			"Duplicate track title, album; multiple artists with one dupe",
 			track.Track{
-				Album: "Album 1",
-				Artists: []string{
-					"Artist 4", "Artist 5", "Artist 6", "Artist 1",
+				Album:         "Album 1",
+				PrimaryArtist: "Artist 4",
+				OtherArtists: []string{
+					"Artist 5", "Artist 6", "Artist 1",
 				},
 				Title: "Title 1",
 			},
@@ -185,11 +186,11 @@ func TestSaveTracks(t *testing.T) {
 				id:    1,
 				title: "Album 1",
 			},
-			artists: []artistResult{
-				{
-					id:   1,
-					name: "Artist 1",
-				},
+			primaryArtist: artistResult{
+				id:   1,
+				name: "Artist 1",
+			},
+			otherArtists: []artistResult{
 				{
 					id:   2,
 					name: "Artist 2",
@@ -229,11 +230,11 @@ func TestSaveTracks(t *testing.T) {
 				id:    1,
 				title: "Album 1",
 			},
-			artists: []artistResult{
-				{
-					id:   1,
-					name: "Artist 1",
-				},
+			primaryArtist: artistResult{
+				id:   1,
+				name: "Artist 1",
+			},
+			otherArtists: []artistResult{
 				{
 					id:   2,
 					name: "Artist 2",
@@ -273,12 +274,11 @@ func TestSaveTracks(t *testing.T) {
 				id:    1,
 				title: "Album 1",
 			},
-			artists: []artistResult{
-				{
-					id:   1,
-					name: "Artist 1",
-				},
+			primaryArtist: artistResult{
+				id:   1,
+				name: "Artist 1",
 			},
+			otherArtists: []artistResult{},
 		},
 	)
 
@@ -309,12 +309,11 @@ func TestSaveTracks(t *testing.T) {
 				id:    2,
 				title: "Album 2",
 			},
-			artists: []artistResult{
-				{
-					id:   4,
-					name: "Artist 4",
-				},
+			primaryArtist: artistResult{
+				id:   4,
+				name: "Artist 4",
 			},
+			otherArtists: []artistResult{},
 		},
 	)
 
@@ -346,12 +345,48 @@ func TestSaveTracks(t *testing.T) {
 				id:    3,
 				title: "Album 2",
 			},
-			artists: []artistResult{
-				{
-					id:   5,
-					name: "Artist 5",
-				},
+			primaryArtist: artistResult{
+				id:   5,
+				name: "Artist 5",
 			},
+			otherArtists: []artistResult{},
+		},
+	)
+
+	got = readDB(t, db)
+	if !reflect.DeepEqual(expected, got) {
+		t.Errorf("\nExpected:\n%#v\ngot:\n%#v", expected, got)
+	}
+
+	//////////////////////////////////////////////////////////////////////////
+
+	// Duplicate track title, duplicate album title, duplicate artists but
+	// with primary artist new for given track
+	// => different album with same name as another
+	input = []track.Track{
+		track.New(
+			"Title 1",
+			"Album 1",
+			[]string{"Artist 2", "Artist 1", "Artist 3"},
+		),
+	}
+
+	SaveTracks(db, input)
+
+	expected = append(
+		expected,
+		trackResult{
+			id:    6,
+			title: "Title 1",
+			album: albumResult{
+				id:    4,
+				title: "Album 1",
+			},
+			primaryArtist: artistResult{
+				id:   2,
+				name: "Artist 2",
+			},
+			otherArtists: []artistResult{},
 		},
 	)
 
@@ -533,7 +568,7 @@ func readDB(t *testing.T, db *sql.DB) []trackResult {
 			artists = append(artists, artist)
 		}
 
-		tracks[i].artists = artists
+		tracks[i].otherArtists = artists
 	}
 
 	return tracks
