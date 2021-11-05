@@ -11,7 +11,12 @@ type Track struct {
 	Ranking float64 // Default to 1000?
 }
 
-func New(title string, album string, primaryArtist string, otherArtists []string) Track {
+func New(
+	title string,
+	album string,
+	primaryArtist string,
+	otherArtists []string,
+) Track {
 	return Track{
 		Album:         album,
 		PrimaryArtist: primaryArtist,

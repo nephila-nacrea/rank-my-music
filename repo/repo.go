@@ -74,7 +74,7 @@ func SaveTracks(db *sql.DB, inputTracks []track.Track) {
 					_, err = db.Exec(
 						`INSERT INTO album_artist
 						             (album_id, artist_id)
-							  VALUES (?,?)`,
+						      VALUES (?,?)`,
 						albumID,
 						pArtistID,
 					)
@@ -161,8 +161,8 @@ func SaveTracks(db *sql.DB, inputTracks []track.Track) {
 
 				_, err = db.Exec(
 					`INSERT INTO track_artist
-				            (track_id, artist_id, is_primary_artist)
-				     VALUES (?,?,?)`,
+					        (track_id, artist_id, is_primary_artist)
+					 VALUES (?,?,?)`,
 					trackID,
 					artistID,
 					idx == 0, // Assume primary artist is first one in list
@@ -174,13 +174,13 @@ func SaveTracks(db *sql.DB, inputTracks []track.Track) {
 				artistIDs = append(artistIDs, artistID)
 			}
 
-			// Insert album if not a duplicate. It is possible for different
-			// albums to have the same name, but we assume album names to be
-			// unique per primary artist.
+			// Insert album if not a duplicate. It is possible for
+			// different albums to have the same name, but we assume
+			// album names to be unique per primary artist.
 			row := db.QueryRow(
-				`SELECT al.id,
+				`SELECT al.id
 				   FROM albums al
-				   JOIN album_artist aa ON aa.album_id = albums.id
+				   JOIN album_artist aa ON aa.album_id = al.id
 				  WHERE al.title = ?
 				    AND aa.artist_id  = ?`,
 				inputTrack.Album,
@@ -196,8 +196,8 @@ func SaveTracks(db *sql.DB, inputTracks []track.Track) {
 
 				res, err = db.Exec(
 					`INSERT INTO albums
-				            (title)
-				     VALUES (?)`,
+					        (title)
+					 VALUES (?)`,
 					inputTrack.Album,
 				)
 				if err != nil {
@@ -208,28 +208,29 @@ func SaveTracks(db *sql.DB, inputTracks []track.Track) {
 				if err != nil {
 					log.Fatalln(err)
 				}
+
+				// Populate album_artist
+				_, err = db.Exec(
+					`INSERT INTO album_artist
+					        (album_id, artist_id)
+					 VALUES (?,?)`,
+					albumID,
+					artistIDs[0], // Primary artist
+				)
+				if err != nil {
+					log.Fatalln(err)
+				}
 			}
 
 			log.Println("    Album ID: " + strconv.Itoa(int(albumID)))
 
-			// Populate both track_album and album_artist
+			// Populate track_album
 			_, err = db.Exec(
 				`INSERT INTO track_album
-			            (track_id, album_id)
-			     VALUES (?,?)`,
+				        (track_id, album_id)
+				 VALUES (?,?)`,
 				trackID,
 				albumID,
-			)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			_, err = db.Exec(
-				`INSERT INTO album_artist
-			            (album_id, artist_id)
-			     VALUES (?,?)`,
-				albumID,
-				artistIDs[0], // Primary artist
 			)
 			if err != nil {
 				log.Fatalln(err)
@@ -261,9 +262,14 @@ func getExistingDataForTrack(db *sql.DB, inputTrack track.Track) (
 		log.Fatal(err)
 	}
 
+	albums = map[string]bool{}
 	for rows.Next() {
 		var album string
-		if err = rows.Scan(&album); err != nil {
+		if err = rows.Scan(
+			&trackID,
+			&primaryArtistID,
+			&album,
+		); err != nil {
 			log.Fatal(err)
 		}
 		albums[album] = true
