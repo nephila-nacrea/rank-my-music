@@ -22,7 +22,7 @@ type trackResult struct {
 	id    int
 	title string
 
-	album         albumResult
+	albums        []albumResult
 	primaryArtist artistResult
 	otherArtists  []artistResult
 }
@@ -40,9 +40,9 @@ func SaveTracks(db *sql.DB, inputTracks []track.Track) {
 
 				var albumID int64
 				row := db.QueryRow(
-					`SELECT al.id,
+					`SELECT al.id
 					   FROM albums al
-					   JOIN album_artist aa ON aa.album_id = albums.id
+					   JOIN album_artist aa ON aa.album_id = al.id
 					  WHERE al.title = ?
 					    AND aa.artist_id  = ?`,
 					inputTrack.Album,
