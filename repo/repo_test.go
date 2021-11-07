@@ -332,7 +332,7 @@ func TestSaveTracks(t *testing.T) {
 
 	//////////////////////////////////////////////////////////////////////////
 
-	// Add new artist as secondary artist to existing track
+	// Add new artists as secondary artists to existing track
 	input = []track.Track{
 		track.New(
 			"Title 1",
@@ -340,18 +340,23 @@ func TestSaveTracks(t *testing.T) {
 			"Artist 1",
 			[]string{
 				"Artist 401",
+				"Artist 501",
 			},
 		),
 	}
 
 	SaveTracks(db, input)
 
-	// Track updated to have secondary artist
+	// Track updated to have secondary artists
 	tmp := expected[1]
 	tmp.otherArtists = []artistResult{
 		{
 			id:   8,
 			name: "Artist 401",
+		},
+		{
+			id:   9,
+			name: "Artist 501",
 		},
 	}
 	expected[1] = tmp

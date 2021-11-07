@@ -37,8 +37,7 @@ CREATE TABLE track_album (
     FOREIGN KEY(album_id) REFERENCES albums(id) ON DELETE CASCADE
 );
 
--- An album may have multiple artists. Albums may also have the same name so
--- we need to use artists to disambiguate.
+-- Albums may have the same name so we need to use artists to disambiguate.
 CREATE TABLE album_artist (
     album_id,
     artist_id,
