@@ -29,294 +29,307 @@ type trackResult struct {
 
 func SaveTracks(db *sql.DB, inputTracks []track.Track) {
 	for _, inputTrack := range inputTracks {
-		trackID,
-			pArtistID,
-			existingAlbumsForTrack,
-			existingOtherArtistsForTrack :=
-			getExistingDataForTrack(db, inputTrack)
+		err := saveTrack(db, inputTrack)
+		if err != nil {
+			log.Printf("%s\n\n", err)
+		}
+	}
+}
 
-		if trackID > 0 {
-			log.Printf(
-				"Track '%s' exists for primary artist '%s'",
-				inputTrack.Title,
-				inputTrack.PrimaryArtist,
-			)
+// Save individual track, wrapped in a transaction
+func saveTrack(db *sql.DB, inputTrack track.Track) error {
+	trackID,
+		pArtistID,
+		existingAlbumsForTrack,
+		existingOtherArtistsForTrack :=
+		getExistingDataForTrack(db, inputTrack)
 
-			// Track (title + primary artist combo) already exists, but album
-			// from inputTrack may not already be associated with track.
-			// Same with secondary artists.
-			if _, exists := existingAlbumsForTrack[inputTrack.Album]; !exists {
-				// Check if album already exists for primary artist
-				var albumID int64
-				row := db.QueryRow(
-					`SELECT al.id
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if trackID > 0 {
+		log.Printf(
+			"Track '%s' exists for primary artist '%s'",
+			inputTrack.Title,
+			inputTrack.PrimaryArtist,
+		)
+
+		// Track (title + primary artist combo) already exists, but album
+		// from inputTrack may not already be associated with track.
+		// Same with secondary artists.
+		if _, exists := existingAlbumsForTrack[inputTrack.Album]; !exists {
+			// Check if album already exists for primary artist
+			var albumID int64
+			row := tx.QueryRow(
+				`SELECT al.id
 					   FROM albums al
 					   JOIN album_artist aa ON aa.album_id = al.id
 					  WHERE al.title = ?
 					    AND aa.artist_id  = ?`,
-					inputTrack.Album,
-					pArtistID,
-				)
-
-				err := row.Scan(&albumID)
-				if err != nil && err != sql.ErrNoRows {
-					log.Fatal(err)
-				}
-				if err == sql.ErrNoRows {
-					log.Printf(
-						"    Inserting album: %s",
-						inputTrack.Album,
-					)
-
-					// Insert album
-					res, err := db.Exec(
-						`INSERT INTO albums
-						             (title)
-						      VALUES (?)`,
-						inputTrack.Album,
-					)
-					if err != nil {
-						log.Fatal(err)
-					}
-
-					albumID, err = res.LastInsertId()
-					if err != nil {
-						log.Fatal(err)
-					}
-
-					log.Printf("    Album ID: %d", albumID)
-
-					// Associate album with artist
-					_, err = db.Exec(
-						`INSERT INTO album_artist
-						             (album_id, artist_id)
-						      VALUES (?,?)`,
-						albumID,
-						pArtistID,
-					)
-					if err != nil {
-						log.Fatal(err)
-					}
-				}
-
-				log.Printf(
-					"    Associating album '%s' with track",
-					inputTrack.Album,
-				)
-
-				// Associate track with album
-				_, err = db.Exec(
-					`INSERT INTO track_album
-					             (track_id, album_id)
-					      VALUES (?,?)`,
-					trackID,
-					albumID,
-				)
-				if err != nil {
-					log.Fatal(err)
-				}
-			}
-			for _, inputOtherArtist := range inputTrack.OtherArtists {
-				if _, exists := existingOtherArtistsForTrack[inputOtherArtist]; !exists {
-					// Check if artist exists in DB
-					var otherArtistID int64
-					row := db.QueryRow(
-						`SELECT ar.id
-						   FROM artists ar
-						  WHERE ar.name = ?`,
-						inputOtherArtist,
-					)
-
-					err := row.Scan(&otherArtistID)
-					if err != nil && err != sql.ErrNoRows {
-						log.Fatal(err)
-					}
-					if err == sql.ErrNoRows {
-						log.Printf(
-							"    Inserting artist %s",
-							inputOtherArtist,
-						)
-
-						// Add artist
-						res, err := db.Exec(
-							`INSERT INTO artists
-							             (name)
-							      VALUES (?)`,
-							inputOtherArtist,
-						)
-						if err != nil {
-							log.Fatal(err)
-						}
-
-						otherArtistID, err = res.LastInsertId()
-						if err != nil {
-							log.Fatal(err)
-						}
-
-						log.Printf("    Artist ID: %d", otherArtistID)
-					}
-
-					log.Printf(
-						"    Associating artist '%s' with track",
-						inputOtherArtist,
-					)
-
-					// Associate track with artist
-					_, err = db.Exec(
-						`INSERT INTO track_artist
-						             (track_id, artist_id, is_primary_artist)
-						      VALUES ( ?, ?, 0 )`,
-						trackID,
-						otherArtistID,
-					)
-					if err != nil {
-						log.Fatal(err)
-					}
-				}
-			}
-		} else {
-			// Brand new track
-
-			// TODO Transaction
-			// TODO Tests
-			// TODO Handle empty track names, album names etc.
-			// TODO Prevent duplicate tracks (across artist & album)
-
-			log.Println("Inserting track: " + inputTrack.Title)
-
-			res, err := db.Exec(
-				`INSERT INTO tracks
-				        (title, ranking)
-				 VALUES (?,?)`,
-				inputTrack.Title,
-				inputTrack.Ranking,
-			)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			trackID, err := res.LastInsertId()
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			var artistIDs []int64
-
-			// Insert artist if not a duplicate
-			for idx, artist := range append(
-				[]string{inputTrack.PrimaryArtist},
-				inputTrack.OtherArtists...,
-			) {
-				// Does artist already exist?
-				row := db.QueryRow(
-					"SELECT id FROM artists WHERE name = ?",
-					artist,
-				)
-
-				var artistID int64
-				if err = row.Scan(&artistID); err != nil && err != sql.ErrNoRows {
-					log.Fatalln(err)
-				}
-				if err == sql.ErrNoRows {
-					log.Println("    Inserting artist: " + artist)
-
-					res, err = db.Exec(
-						`INSERT INTO artists
-						        (name)
-						 VALUES (?)`,
-						artist,
-					)
-					if err != nil {
-						log.Fatalln(err)
-					}
-
-					artistID, err = res.LastInsertId()
-					if err != nil {
-						log.Fatalln(err)
-					}
-				}
-
-				log.Println("    Artist ID: " + strconv.Itoa(int(artistID)))
-
-				_, err = db.Exec(
-					`INSERT INTO track_artist
-					        (track_id, artist_id, is_primary_artist)
-					 VALUES (?,?,?)`,
-					trackID,
-					artistID,
-					idx == 0, // Assume primary artist is first one in list
-				)
-				if err != nil {
-					log.Fatalln(err)
-				}
-
-				artistIDs = append(artistIDs, artistID)
-			}
-
-			// Insert album if not a duplicate. It is possible for
-			// different albums to have the same name, but we assume
-			// album names to be unique per primary artist.
-			row := db.QueryRow(
-				`SELECT al.id
-				   FROM albums al
-				   JOIN album_artist aa ON aa.album_id = al.id
-				  WHERE al.title = ?
-				    AND aa.artist_id  = ?`,
 				inputTrack.Album,
-				artistIDs[0], // Primary artist
+				pArtistID,
 			)
 
-			var albumID int64
-			if err = row.Scan(&albumID); err != nil && err != sql.ErrNoRows {
-				log.Fatalln(err)
+			err := row.Scan(&albumID)
+			if err != nil && err != sql.ErrNoRows {
+				return err
 			}
 			if err == sql.ErrNoRows {
-				log.Println("    Inserting album: " + inputTrack.Album)
+				log.Printf(
+					"    Inserting album: %s",
+					inputTrack.Album,
+				)
 
-				res, err = db.Exec(
+				// Insert album
+				res, err := tx.Exec(
 					`INSERT INTO albums
-					        (title)
-					 VALUES (?)`,
+					             (title)
+					      VALUES (?)`,
 					inputTrack.Album,
 				)
 				if err != nil {
-					log.Fatalln(err)
+					return err
 				}
 
 				albumID, err = res.LastInsertId()
 				if err != nil {
+					return err
+				}
+
+				log.Printf("    Album ID: %d", albumID)
+
+				// Associate album with artist
+				_, err = tx.Exec(
+					`INSERT INTO album_artist
+					             (album_id, artist_id)
+					      VALUES (?,?)`,
+					albumID,
+					pArtistID,
+				)
+				if err != nil {
+					return err
+				}
+			}
+
+			log.Printf(
+				"    Associating album '%s' with track",
+				inputTrack.Album,
+			)
+
+			// Associate track with album
+			_, err = tx.Exec(
+				`INSERT INTO track_album
+				             (track_id, album_id)
+				      VALUES (?,?)`,
+				trackID,
+				albumID,
+			)
+			if err != nil {
+				return err
+			}
+		}
+		for _, inputOtherArtist := range inputTrack.OtherArtists {
+			if _, exists := existingOtherArtistsForTrack[inputOtherArtist]; !exists {
+				// Check if artist exists in DB
+				var otherArtistID int64
+				row := tx.QueryRow(
+					`SELECT ar.id
+					   FROM artists ar
+					  WHERE ar.name = ?`,
+					inputOtherArtist,
+				)
+
+				err := row.Scan(&otherArtistID)
+				if err != nil && err != sql.ErrNoRows {
+					return err
+				}
+				if err == sql.ErrNoRows {
+					log.Printf(
+						"    Inserting artist %s",
+						inputOtherArtist,
+					)
+
+					// Add artist
+					res, err := tx.Exec(
+						`INSERT INTO artists
+						             (name)
+						      VALUES (?)`,
+						inputOtherArtist,
+					)
+					if err != nil {
+						return err
+					}
+
+					otherArtistID, err = res.LastInsertId()
+					if err != nil {
+						return err
+					}
+
+					log.Printf("    Artist ID: %d", otherArtistID)
+				}
+
+				log.Printf(
+					"    Associating artist '%s' with track",
+					inputOtherArtist,
+				)
+
+				// Associate track with artist
+				_, err = tx.Exec(
+					`INSERT INTO track_artist
+					             (track_id, artist_id, is_primary_artist)
+					      VALUES ( ?, ?, 0 )`,
+					trackID,
+					otherArtistID,
+				)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	} else {
+		// Brand new track
+
+		// TODO Handle empty track names, album names etc.
+
+		log.Println("Inserting track: " + inputTrack.Title)
+
+		res, err := tx.Exec(
+			`INSERT INTO tracks
+			            (title, ranking)
+			     VALUES (?,?)`,
+			inputTrack.Title,
+			inputTrack.Ranking,
+		)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		trackID, err := res.LastInsertId()
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		var artistIDs []int64
+
+		// Insert artist if not a duplicate
+		for idx, artist := range append(
+			[]string{inputTrack.PrimaryArtist},
+			inputTrack.OtherArtists...,
+		) {
+			// Does artist already exist?
+			row := tx.QueryRow(
+				"SELECT id FROM artists WHERE name = ?",
+				artist,
+			)
+
+			var artistID int64
+			if err = row.Scan(&artistID); err != nil && err != sql.ErrNoRows {
+				log.Fatalln(err)
+			}
+			if err == sql.ErrNoRows {
+				log.Println("    Inserting artist: " + artist)
+
+				res, err = tx.Exec(
+					`INSERT INTO artists
+					            (name)
+					     VALUES (?)`,
+					artist,
+				)
+				if err != nil {
 					log.Fatalln(err)
 				}
 
-				// Populate album_artist
-				_, err = db.Exec(
-					`INSERT INTO album_artist
-					        (album_id, artist_id)
-					 VALUES (?,?)`,
-					albumID,
-					artistIDs[0], // Primary artist
-				)
+				artistID, err = res.LastInsertId()
 				if err != nil {
 					log.Fatalln(err)
 				}
 			}
 
-			log.Println("    Album ID: " + strconv.Itoa(int(albumID)))
+			log.Println("    Artist ID: " + strconv.Itoa(int(artistID)))
 
-			// Populate track_album
-			_, err = db.Exec(
-				`INSERT INTO track_album
-				        (track_id, album_id)
-				 VALUES (?,?)`,
+			_, err = tx.Exec(
+				`INSERT INTO track_artist
+				            (track_id, artist_id, is_primary_artist)
+				     VALUES (?,?,?)`,
 				trackID,
+				artistID,
+				idx == 0, // Assume primary artist is first one in list
+			)
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			artistIDs = append(artistIDs, artistID)
+		}
+
+		// Insert album if not a duplicate. It is possible for
+		// different albums to have the same name, but we assume
+		// album names to be unique per primary artist.
+		row := tx.QueryRow(
+			`SELECT al.id
+			   FROM albums al
+			   JOIN album_artist aa ON aa.album_id = al.id
+			  WHERE al.title = ?
+			    AND aa.artist_id  = ?`,
+			inputTrack.Album,
+			artistIDs[0], // Primary artist
+		)
+
+		var albumID int64
+		if err = row.Scan(&albumID); err != nil && err != sql.ErrNoRows {
+			log.Fatalln(err)
+		}
+		if err == sql.ErrNoRows {
+			log.Println("    Inserting album: " + inputTrack.Album)
+
+			res, err = tx.Exec(
+				`INSERT INTO albums
+				            (title)
+				     VALUES (?)`,
+				inputTrack.Album,
+			)
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			albumID, err = res.LastInsertId()
+			if err != nil {
+				log.Fatalln(err)
+			}
+
+			// Populate album_artist
+			_, err = tx.Exec(
+				`INSERT INTO album_artist
+				            (album_id, artist_id)
+				     VALUES (?,?)`,
 				albumID,
+				artistIDs[0], // Primary artist
 			)
 			if err != nil {
 				log.Fatalln(err)
 			}
 		}
-		log.Println()
+
+		log.Println("    Album ID: " + strconv.Itoa(int(albumID)))
+
+		// Populate track_album
+		_, err = tx.Exec(
+			`INSERT INTO track_album
+			            (track_id, album_id)
+			     VALUES (?,?)`,
+			trackID,
+			albumID,
+		)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
+
+	log.Print("    Committing transaction\n\n")
+	return tx.Commit()
 }
 
 func getExistingDataForTrack(db *sql.DB, inputTrack track.Track) (
