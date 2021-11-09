@@ -1,0 +1,6 @@
+Database is SQLite.
+Stored in file 'ranked_music.sqlt'.
+
+To create DB file from command line (remember to `cd` into repo):
+    sqlite3 ranked_music.sqlt
+    .read <schema filename>

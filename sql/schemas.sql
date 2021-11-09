@@ -2,6 +2,7 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE tracks (
     id INTEGER PRIMARY KEY,
+    musicbrainz_id TEXT,
     title,
     ranking,
     -- It may be possible to save duplicate tracks into this table

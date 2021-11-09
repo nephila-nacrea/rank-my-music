@@ -23,6 +23,7 @@ func TestSaveTracks(t *testing.T) {
 			"Album 1",
 			"Artist 1",
 			[]string{},
+			"",
 		),
 		// Complete duplicate
 		track.New(
@@ -30,6 +31,7 @@ func TestSaveTracks(t *testing.T) {
 			"Album 1",
 			"Artist 1",
 			[]string{},
+			"",
 		),
 		// Duplicate with secondary artists included
 		// TODO
@@ -69,6 +71,7 @@ func TestSaveTracks(t *testing.T) {
 			"Album 1",
 			"Artist 1",
 			[]string{},
+			"",
 		),
 	}
 
@@ -104,6 +107,7 @@ func TestSaveTracks(t *testing.T) {
 			"Album 1",
 			"Artist 2",
 			[]string{},
+			"",
 		),
 	}
 
@@ -143,6 +147,7 @@ func TestSaveTracks(t *testing.T) {
 			"Album 2",
 			"Artist 1",
 			[]string{},
+			"",
 		),
 	}
 
@@ -183,6 +188,7 @@ func TestSaveTracks(t *testing.T) {
 			"Album 1",
 			"Artist 3",
 			[]string{},
+			"",
 		),
 	}
 
@@ -219,6 +225,7 @@ func TestSaveTracks(t *testing.T) {
 			"Album 3",
 			"Artist 1",
 			[]string{},
+			"",
 		),
 	}
 
@@ -255,6 +262,7 @@ func TestSaveTracks(t *testing.T) {
 			"Album 4",
 			"Artist 4",
 			[]string{},
+			"",
 		),
 	}
 
@@ -294,6 +302,7 @@ func TestSaveTracks(t *testing.T) {
 				"Artist 201",
 				"Artist 301",
 			},
+			"",
 		),
 	}
 
@@ -342,6 +351,7 @@ func TestSaveTracks(t *testing.T) {
 				"Artist 401",
 				"Artist 501",
 			},
+			"",
 		),
 	}
 
@@ -365,6 +375,13 @@ func TestSaveTracks(t *testing.T) {
 	if !reflect.DeepEqual(expected, got) {
 		t.Errorf("\nExpected:\n%#v\ngot:\n%#v", expected, got)
 	}
+
+	// TODO
+	// Save brand new with musicbrainz ID
+	// Save duplicate with musicbrainz ID
+	// Save different with same musicbrainz ID?
+	// Update to have musicbrainz ID?
+	// Update track that has a musicbrainz ID
 }
 
 func readDB(t *testing.T, db *sql.DB) map[int]trackResult {

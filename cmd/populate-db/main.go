@@ -3,13 +3,11 @@
 package main
 
 import (
-	"database/sql"
 	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/dhowden/tag"
-	"github.com/nephila-nacrea/rank-my-music/repo"
 	"github.com/nephila-nacrea/rank-my-music/track"
 
 	_ "modernc.org/sqlite"
@@ -32,7 +30,7 @@ func main() {
 	err := filepath.Walk(
 		folderPath,
 		func(path string, info os.FileInfo, err error) error {
-			if !info.IsDir() {
+			if info != nil && !info.IsDir() {
 				files = append(files, path)
 			}
 			return nil
@@ -53,7 +51,7 @@ func main() {
 			log.Println(f+": ", err)
 		} else {
 			// Dedupe artist data
-			artists := []string{meta.Artist()}
+			artists := []string{}
 
 			if meta.AlbumArtist() != meta.Artist() {
 				artists = append(artists, meta.AlbumArtist())
@@ -69,18 +67,51 @@ func main() {
 				track.New(
 					meta.Title(),
 					meta.Album(),
+					meta.Artist(),
 					artists,
+					"", // TODO
 				),
 			)
+
+			raw := meta.Raw()
+			log.Println(meta.Title())
+			log.Println(meta.Album())
+			log.Println(meta.Format())
+
+			// // For format = VORBIS
+			log.Println(raw["musicbrainz_trackid"])
+
+			// For format = ID3v2.3
+			// TODO
+			// In format 'http://musicbrainz.org (*)',
+			// need to get * only
+			log.Println(raw["UFID"])
+
+			// For format = MP4
+			log.Println(raw["MusicBrainz Track Id"])
+
+			log.Println("==========")
+
+			if raw["musicbrainz_trackid"] == nil &&
+				raw["UFID"] == nil &&
+				raw["MusicBrainz Track Id"] == nil {
+				// log.Println(f)
+				// log.Printf("%#v", raw)
+				// log.Println(raw["UFID"])
+				// log.Println(meta.Title())
+				// log.Println(meta.Album())
+				// log.Println(meta.Format())
+				// TODO Store in a file
+			}
 		}
 	}
 
 	log.Println("Now for the database!")
 
-	db, err := sql.Open("sqlite", "file:ranked_music.sqlt")
-	if err != nil {
-		log.Fatalln(err)
-	}
+	// db, err := sql.Open("sqlite", "file:ranked_music.sqlt")
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
 
-	repo.SaveTracks(db, tracks)
+	// repo.SaveTracks(db, tracks)
 }

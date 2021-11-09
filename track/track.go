@@ -4,8 +4,9 @@ const StartingRanking = 1000
 
 type Track struct {
 	Album         string
-	PrimaryArtist string
+	MusicBrainzID string
 	OtherArtists  []string
+	PrimaryArtist string
 	Title         string
 
 	Ranking float64 // Default to 1000?
@@ -16,6 +17,7 @@ func New(
 	album string,
 	primaryArtist string,
 	otherArtists []string,
+	musicbrainz_id string,
 ) Track {
 	return Track{
 		Album:         album,
