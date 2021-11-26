@@ -13,6 +13,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+const problemTracksFilename = "problem-tracks.txt"
+
 func init() {
 	log.SetFlags(log.Llongfile)
 }
@@ -26,12 +28,12 @@ func main() {
 
 	var tracks []track.Track
 
-	var files []string
+	var filenames []string
 	err := filepath.Walk(
 		folderPath,
 		func(path string, info os.FileInfo, err error) error {
 			if info != nil && !info.IsDir() {
-				files = append(files, path)
+				filenames = append(filenames, path)
 			}
 			return nil
 		},
@@ -40,15 +42,36 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	for _, f := range files {
-		file, err := os.Open(f)
+	problemTracksFile, err := os.OpenFile(
+		problemTracksFilename,
+		os.O_WRONLY,
+		os.ModeAppend,
+	)
+	if err != nil {
+		log.Println(err)
+
+		problemTracksFile, err = os.Create(problemTracksFilename)
 		if err != nil {
-			log.Println(f+": ", err)
+			panic(err)
+		}
+	}
+
+	defer problemTracksFile.Close()
+
+	for _, filename := range filenames {
+		file, err := os.Open(filename)
+		if err != nil {
+			log.Println(filename+": ", err)
 		}
 
 		meta, err := tag.ReadFrom(file)
 		if err != nil {
-			log.Println(f+": ", err)
+			log.Println(filename+": ", err)
+
+			_, err = problemTracksFile.WriteString(filename + "\n")
+			if err != nil {
+				panic(err)
+			}
 		} else {
 			// Dedupe artist data
 			artists := []string{}
@@ -69,39 +92,36 @@ func main() {
 					meta.Album(),
 					meta.Artist(),
 					artists,
-					"", // TODO
+					"", // TODO musicbrainz_id
 				),
 			)
 
 			raw := meta.Raw()
-			log.Println(meta.Title())
-			log.Println(meta.Album())
-			log.Println(meta.Format())
+			// log.Println(meta.Title())
+			// log.Println(meta.Album())
+			// log.Println(meta.Format())
 
-			// // For format = VORBIS
-			log.Println(raw["musicbrainz_trackid"])
+			// For format = VORBIS
+			// log.Println(raw["musicbrainz_trackid"])
 
 			// For format = ID3v2.3
 			// TODO
 			// In format 'http://musicbrainz.org (*)',
 			// need to get * only
-			log.Println(raw["UFID"])
+			// log.Println(raw["UFID"])
 
 			// For format = MP4
-			log.Println(raw["MusicBrainz Track Id"])
+			// log.Println(raw["MusicBrainz Track Id"])
 
-			log.Println("==========")
+			// log.Println("==========")
 
 			if raw["musicbrainz_trackid"] == nil &&
 				raw["UFID"] == nil &&
 				raw["MusicBrainz Track Id"] == nil {
-				// log.Println(f)
-				// log.Printf("%#v", raw)
-				// log.Println(raw["UFID"])
-				// log.Println(meta.Title())
-				// log.Println(meta.Album())
-				// log.Println(meta.Format())
-				// TODO Store in a file
+				problemTracksFile.WriteString(filename + "\n")
+				problemTracksFile.WriteString("    Title: " + meta.Title() + "\n")
+				problemTracksFile.WriteString("    Album: " + meta.Album() + "\n")
+				problemTracksFile.WriteString("    Artist: " + meta.Artist() + "\n")
 			}
 		}
 	}
