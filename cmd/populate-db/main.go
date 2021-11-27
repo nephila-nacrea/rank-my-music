@@ -3,9 +3,11 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"github.com/dhowden/tag"
 	"github.com/nephila-nacrea/rank-my-music/track"
@@ -32,7 +34,20 @@ func main() {
 	err := filepath.Walk(
 		folderPath,
 		func(path string, info os.FileInfo, err error) error {
-			if info != nil && !info.IsDir() {
+			if err != nil {
+				panic(err)
+			}
+
+			ignore, rgxErr := regexp.MatchString(
+				`\.(jpg|ini|aa|wav|png|db|mpeg|wmv|wax|URL)`,
+				path,
+			)
+
+			if rgxErr != nil {
+				panic(err)
+			}
+
+			if !ignore && info != nil && !info.IsDir() {
 				filenames = append(filenames, path)
 			}
 			return nil
@@ -44,16 +59,11 @@ func main() {
 
 	problemTracksFile, err := os.OpenFile(
 		problemTracksFilename,
-		os.O_WRONLY,
+		os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
 		os.ModeAppend,
 	)
 	if err != nil {
-		log.Println(err)
-
-		problemTracksFile, err = os.Create(problemTracksFilename)
-		if err != nil {
-			panic(err)
-		}
+		panic(err)
 	}
 
 	defer problemTracksFile.Close()
@@ -122,6 +132,7 @@ func main() {
 				problemTracksFile.WriteString("    Title: " + meta.Title() + "\n")
 				problemTracksFile.WriteString("    Album: " + meta.Album() + "\n")
 				problemTracksFile.WriteString("    Artist: " + meta.Artist() + "\n")
+				problemTracksFile.WriteString(fmt.Sprintf("    Format: %v\n", meta.Format()))
 			}
 		}
 	}
