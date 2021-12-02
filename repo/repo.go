@@ -19,8 +19,9 @@ type artistResult struct {
 }
 
 type trackResult struct {
-	id    int
-	title string
+	id            int
+	title         string
+	musicBrainzID string
 
 	albums        []albumResult
 	primaryArtist artistResult
@@ -195,12 +196,14 @@ func saveTrack(db *sql.DB, inputTrack track.Track) error {
 		// TODO Handle empty track names, album names etc.
 
 		log.Println("Inserting track: " + inputTrack.Title)
+		log.Println("MusicBrainz ID: " + inputTrack.MusicBrainzID)
 
 		res, err := tx.Exec(
 			`INSERT INTO tracks
-			            (title, ranking)
-			     VALUES (?,?)`,
+			             (title, musicbrainz_id, ranking)
+			      VALUES (?,?,?)`,
 			inputTrack.Title,
+			inputTrack.MusicBrainzID,
 			inputTrack.Ranking,
 		)
 		if err != nil {
@@ -338,7 +341,8 @@ func getExistingDataForTrack(db *sql.DB, inputTrack track.Track) (
 	albums map[string]bool,
 	artists map[string]bool,
 ) {
-	// Get albums for given track title and primary artist
+	// Get albums for given MusicBrainz ID or else for track title and primary
+	// artist
 	rows, err := db.Query(
 		`SELECT t.id,
 		        ar.id,
@@ -348,9 +352,12 @@ func getExistingDataForTrack(db *sql.DB, inputTrack track.Track) (
 		   JOIN tracks       t   ON t.id = tal.track_id
 		   JOIN track_artist tar ON tar.track_id = t.id
 		   JOIN artists      ar  ON ar.id = tar.artist_id
-		  WHERE t.title = ?
-		    AND ar.name = ?
-		    AND tar.is_primary_artist = 1`,
+		  WHERE t.musicbrainz_id = ?
+		     OR (    t.title = ?
+		         AND ar.name = ?
+		         AND tar.is_primary_artist = 1
+		    )`,
+		inputTrack.MusicBrainzID,
 		inputTrack.Title,
 		inputTrack.PrimaryArtist,
 	)

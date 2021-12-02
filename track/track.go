@@ -17,10 +17,11 @@ func New(
 	album string,
 	primaryArtist string,
 	otherArtists []string,
-	musicbrainz_id string,
+	musicBrainzID string,
 ) Track {
 	return Track{
 		Album:         album,
+		MusicBrainzID: musicBrainzID,
 		PrimaryArtist: primaryArtist,
 		OtherArtists:  otherArtists,
 		Title:         title,
