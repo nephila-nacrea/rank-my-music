@@ -2,29 +2,42 @@ package track
 
 const StartingRanking = 1000
 
-type Track struct {
-	Album         string
+type Album struct {
+	InternalID    int
 	MusicBrainzID string
-	OtherArtists  []string
-	PrimaryArtist string
 	Title         string
-
-	Ranking float64 // Default to 1000?
 }
 
-func New(
-	title string,
-	album string,
-	primaryArtist string,
-	otherArtists []string,
-	musicBrainzID string,
-) Track {
+type Artist struct {
+	InternalID    int
+	MusicBrainzID string
+	Name          string
+}
+
+type Track struct {
+	InternalID    int
+	MusicBrainzID string
+	Title         string
+
+	Albums []Album
+
+	PrimaryArtist Artist
+	OtherArtists  []Artist
+
+	Ranking float64
+}
+
+func New(track Track) Track {
+	// Provide defaults
+
 	return Track{
-		Album:         album,
-		MusicBrainzID: musicBrainzID,
-		PrimaryArtist: primaryArtist,
-		OtherArtists:  otherArtists,
-		Title:         title,
+		MusicBrainzID: track.MusicBrainzID,
+		Title:         track.Title,
+
+		Albums: track.Albums,
+
+		PrimaryArtist: track.PrimaryArtist,
+		OtherArtists:  track.OtherArtists,
 
 		Ranking: StartingRanking,
 	}

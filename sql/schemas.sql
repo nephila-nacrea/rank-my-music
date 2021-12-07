@@ -4,18 +4,18 @@ CREATE TABLE tracks (
     id INTEGER PRIMARY KEY,
     musicbrainz_id TEXT,
     title,
-    ranking,
-    -- It may be possible to save duplicate tracks into this table
-    is_dupe_of
+    ranking
 );
 
 CREATE TABLE artists (
     id INTEGER PRIMARY KEY,
+    musicbrainz_id TEXT,
     name
 );
 
 CREATE TABLE albums (
     id INTEGER PRIMARY KEY,
+    musicbrainz_id TEXT,
     title
 );
 
@@ -37,13 +37,3 @@ CREATE TABLE track_album (
     FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE,
     FOREIGN KEY(album_id) REFERENCES albums(id) ON DELETE CASCADE
 );
-
--- Albums may have the same name so we need to use artists to disambiguate.
-CREATE TABLE album_artist (
-    album_id,
-    artist_id,
-    PRIMARY KEY (album_id, artist_id),
-    FOREIGN KEY(album_id) REFERENCES albums(id) ON DELETE CASCADE,
-    FOREIGN KEY(artist_id) REFERENCES artists(id) ON DELETE CASCADE
-
-)

@@ -89,6 +89,10 @@ func TestSaveTracks(t *testing.T) {
 					id:    1,
 					title: "Album 1",
 				},
+				{
+					id:    2,
+					title: "Album 2",
+				},
 			},
 			primaryArtist: artistResult{
 				id:   1,
@@ -105,10 +109,175 @@ func TestSaveTracks(t *testing.T) {
 
 	//////////////////////////////////////////////////////////////////////////
 
+	t.Log("Track with existing MusicBrainz ID, adding secondary artists")
+
+	input = []track.Track{
+		track.New(
+			"Title 1",
+			"Album 1",
+			"Artist 1",
+			[]string{"Artist 2", "Artist 3"},
+			"MB1",
+		),
+	}
+
+	SaveTracks(db, input)
+
+	expected = map[int]trackResult{
+		1: {
+			id:            1,
+			title:         "Title 1",
+			musicBrainzID: "MB1",
+			albums: []albumResult{
+				{
+					id:    1,
+					title: "Album 1",
+				},
+				{
+					id:    2,
+					title: "Album 2",
+				},
+			},
+			primaryArtist: artistResult{
+				id:   1,
+				name: "Artist 1",
+			},
+			otherArtists: []artistResult{
+				{
+					id:   2,
+					name: "Artist 2",
+				},
+				{
+					id:   3,
+					name: "Artist 3",
+				},
+			},
+		},
+	}
+
+	got = readDB(t, db)
+	if !reflect.DeepEqual(expected, got) {
+		t.Errorf("\nExpected:\n%#v\ngot:\n%#v", expected, got)
+	}
+
+	//////////////////////////////////////////////////////////////////////////
+
+	t.Log("Track with existing MusicBrainz ID but new secondary artists")
+	t.Log("New artists should be added to existing list")
+
+	input = []track.Track{
+		track.New(
+			"Title 1",
+			"Album 1",
+			"Artist 1",
+			[]string{"Artist 4"},
+			"MB1",
+		),
+	}
+
+	SaveTracks(db, input)
+
+	expected = map[int]trackResult{
+		1: {
+			id:            1,
+			title:         "Title 1",
+			musicBrainzID: "MB1",
+			albums: []albumResult{
+				{
+					id:    1,
+					title: "Album 1",
+				},
+				{
+					id:    2,
+					title: "Album 2",
+				},
+			},
+			primaryArtist: artistResult{
+				id:   1,
+				name: "Artist 1",
+			},
+			otherArtists: []artistResult{
+				{
+					id:   2,
+					name: "Artist 2",
+				},
+				{
+					id:   3,
+					name: "Artist 3",
+				},
+				{
+					id:   4,
+					name: "Artist 4",
+				},
+			},
+		},
+	}
+
+	got = readDB(t, db)
+	if !reflect.DeepEqual(expected, got) {
+		t.Errorf("\nExpected:\n%#v\ngot:\n%#v", expected, got)
+	}
+
+	//////////////////////////////////////////////////////////////////////////
+
+	t.Log("New MBID, existing title + primary artist combo")
+	t.Log("Should be an entirely new track")
+
+	input = []track.Track{
+		track.New(
+			"Title 1",
+			"Album 1",
+			"Artist 1",
+			[]string{},
+			"MB2",
+		),
+	}
+
+	SaveTracks(db, input)
+
+	expected = map[int]trackResult{
+		2: {
+			id:            2,
+			title:         "Title 1",
+			musicBrainzID: "MB2",
+			albums: []albumResult{
+				{
+					id:    3,
+					title: "Album 1",
+				},
+			},
+			primaryArtist: artistResult{
+				id:   1,
+				name: "Artist 1",
+			},
+			otherArtists: []artistResult{},
+		},
+	}
+
+	got = readDB(t, db)
+	if !reflect.DeepEqual(expected, got) {
+		t.Errorf("\nExpected:\n%#v\ngot:\n%#v", expected, got)
+	}
+
+	//////////////////////////////////////////////////////////////////////////
+
+	t.Log("Track with existing MusicBrainz ID but different primary artist")
+	t.Log("    Existing primary artist should be uncoupled from track, replaced by new p. artist")
+
+	t.Log("TODO")
+
+	//////////////////////////////////////////////////////////////////////////
+
+	t.Log("Track with existing MusicBrainz ID but different title")
+	t.Log("Title should be overwritten")
+
+	t.Log("TODO")
+
+	//////////////////////////////////////////////////////////////////////////
+
 	// TODO
 	// Existing MBID, new title
 	// Existing MBID, new primary artist
-	// Existing MBID, new secondary artists
 	// New MBID, duplicate (title + primary artist)
 	// No MBID, completely new data
 	// No MBID, duplicate (title + primary artist)

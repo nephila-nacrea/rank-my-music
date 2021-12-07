@@ -39,11 +39,7 @@ func SaveTracks(db *sql.DB, inputTracks []track.Track) {
 
 // Save individual track, wrapped in a transaction
 func saveTrack(db *sql.DB, inputTrack track.Track) error {
-	trackID,
-		pArtistID,
-		existingAlbumsForTrack,
-		existingOtherArtistsForTrack :=
-		getExistingDataForTrack(db, inputTrack)
+	existingTrack := getExistingDataForTrackMBID(db, inputTrack.MusicBrainzID)
 
 	tx, err := db.Begin()
 	if err != nil {
@@ -51,65 +47,61 @@ func saveTrack(db *sql.DB, inputTrack track.Track) error {
 	}
 	defer tx.Rollback()
 
-	if trackID > 0 {
-		log.Printf(
-			"Track '%s' exists for primary artist '%s'",
-			inputTrack.Title,
-			inputTrack.PrimaryArtist,
+	if existingTrack.InternalID > 0 {
+		log.Printf("Track '%s' exists for MBID '%s'",
+			existingTrack.Title,
+			existingTrack.MusicBrainzID,
 		)
 
-		// Track (title + primary artist combo) already exists, but album
-		// from inputTrack may not already be associated with track.
-		// Same with secondary artists.
-		if _, exists := existingAlbumsForTrack[inputTrack.Album]; !exists {
-			// Check if album already exists for primary artist
-			var albumID int64
+		// TODO:
+		// It is possible for a different primary artist to
+		// be provided. In which case, we need to uncouple the old primary
+		// artist from the track and attach the new.
+
+		// Album from inputTrack may not already be associated with track in
+		// DB
+		var existingAlbumsForTrack map[string]bool
+		for _, album := range existingTrack.Albums {
+			existingAlbumsForTrack[album.Title] = true
+		}
+
+		// We assume the input track only ever has one album
+		// TODO What if album list empty?
+		inputAlbum := inputTrack.Albums[0]
+		if _, exists := existingAlbumsForTrack[inputAlbum.Title]; !exists {
+			// Does album exist already?
+			var albumInternalID int64
+
 			row := tx.QueryRow(
-				`SELECT al.id
-					   FROM albums al
-					   JOIN album_artist aa ON aa.album_id = al.id
-					  WHERE al.title = ?
-					    AND aa.artist_id  = ?`,
-				inputTrack.Album,
-				pArtistID,
+				`SELECT id
+				   FROM albums
+				  WHERE musicbrainz_id = ?`,
+				inputAlbum.MusicBrainzID,
 			)
 
-			err := row.Scan(&albumID)
+			err := row.Scan(&albumInternalID)
 			if err != nil && err != sql.ErrNoRows {
 				return err
 			}
 			if err == sql.ErrNoRows {
 				log.Printf(
 					"    Inserting album: %s",
-					inputTrack.Album,
+					inputAlbum.Title,
 				)
 
 				// Insert album
 				res, err := tx.Exec(
 					`INSERT INTO albums
-					             (title)
-					      VALUES (?)`,
-					inputTrack.Album,
-				)
-				if err != nil {
-					return err
-				}
-
-				albumID, err = res.LastInsertId()
-				if err != nil {
-					return err
-				}
-
-				log.Printf("    Album ID: %d", albumID)
-
-				// Associate album with artist
-				_, err = tx.Exec(
-					`INSERT INTO album_artist
-					             (album_id, artist_id)
+					             (musicbrainz_id, title)
 					      VALUES (?,?)`,
-					albumID,
-					pArtistID,
+					inputAlbum.MusicBrainzID,
+					inputAlbum.Title,
 				)
+				if err != nil {
+					return err
+				}
+
+				albumInternalID, err = res.LastInsertId()
 				if err != nil {
 					return err
 				}
@@ -117,7 +109,7 @@ func saveTrack(db *sql.DB, inputTrack track.Track) error {
 
 			log.Printf(
 				"    Associating album '%s' with track",
-				inputTrack.Album,
+				inputAlbum.Title,
 			)
 
 			// Associate track with album
@@ -125,32 +117,41 @@ func saveTrack(db *sql.DB, inputTrack track.Track) error {
 				`INSERT INTO track_album
 				             (track_id, album_id)
 				      VALUES (?,?)`,
-				trackID,
-				albumID,
+				existingTrack.InternalID,
+				albumInternalID,
 			)
 			if err != nil {
 				return err
 			}
 		}
+
+		// Secondary artists from input track may not already be associated
+		// with track in DB
 		for _, inputOtherArtist := range inputTrack.OtherArtists {
-			if _, exists := existingOtherArtistsForTrack[inputOtherArtist]; !exists {
-				// Check if artist exists in DB
-				var otherArtistID int64
+			var existingOtherArtistsForTrack map[string]bool
+			if _, exists := existingOtherArtistsForTrack[inputOtherArtist.Name]; !exists {
+				// Check if artist exists in DB.
+				// Secondary artists do not have a MusicBrainz ID so we have
+				// to go by name.
+				// TODO Is there a better way of handling secondary artist
+				// data?
+
+				var otherArtistInternalID int64
 				row := tx.QueryRow(
 					`SELECT ar.id
 					   FROM artists ar
 					  WHERE ar.name = ?`,
-					inputOtherArtist,
+					inputOtherArtist.Name,
 				)
 
-				err := row.Scan(&otherArtistID)
+				err := row.Scan(&otherArtistInternalID)
 				if err != nil && err != sql.ErrNoRows {
 					return err
 				}
 				if err == sql.ErrNoRows {
 					log.Printf(
-						"    Inserting artist %s",
-						inputOtherArtist,
+						"    Inserting secondary artist %s",
+						inputOtherArtist.Name,
 					)
 
 					// Add artist
@@ -164,26 +165,26 @@ func saveTrack(db *sql.DB, inputTrack track.Track) error {
 						return err
 					}
 
-					otherArtistID, err = res.LastInsertId()
+					otherArtistInternalID, err = res.LastInsertId()
 					if err != nil {
 						return err
 					}
 
-					log.Printf("    Artist ID: %d", otherArtistID)
+					log.Printf("    Artist ID: %d", otherArtistInternalID)
 				}
 
 				log.Printf(
 					"    Associating artist '%s' with track",
-					inputOtherArtist,
+					inputOtherArtist.Name,
 				)
 
 				// Associate track with artist
 				_, err = tx.Exec(
 					`INSERT INTO track_artist
 					             (track_id, artist_id, is_primary_artist)
-					      VALUES ( ?, ?, 0 )`,
-					trackID,
-					otherArtistID,
+					      VALUES (?, ?, 0)`,
+					existingTrack.InternalID,
+					otherArtistInternalID,
 				)
 				if err != nil {
 					return err
@@ -192,6 +193,8 @@ func saveTrack(db *sql.DB, inputTrack track.Track) error {
 		}
 	} else {
 		// Brand new track
+
+		// TODO REFACTOR FOR MBID
 
 		// TODO Handle empty track names, album names etc.
 
@@ -335,72 +338,102 @@ func saveTrack(db *sql.DB, inputTrack track.Track) error {
 	return tx.Commit()
 }
 
-func getExistingDataForTrack(db *sql.DB, inputTrack track.Track) (
-	trackID int64,
-	primaryArtistID int64,
-	albums map[string]bool,
-	artists map[string]bool,
+func getExistingDataForTrackMBID(db *sql.DB, trackMBID string) (
+	existingTrack track.Track,
 ) {
-	// Get albums for given MusicBrainz ID or else for track title and primary
-	// artist
-	rows, err := db.Query(
+	row := db.QueryRow(
 		`SELECT t.id,
+		        t.musicbrainz_id,
+		        t.title,
 		        ar.id,
-		        al.title
-		   FROM albums al
-		   JOIN track_album  tal ON tal.album_id = al.id
-		   JOIN tracks       t   ON t.id = tal.track_id
+		        ar.musicbrainz_id,
+		        ar.name
+		   FROM tracks       t
 		   JOIN track_artist tar ON tar.track_id = t.id
 		   JOIN artists      ar  ON ar.id = tar.artist_id
-		  WHERE t.musicbrainz_id = ?
-		     OR (    t.title = ?
-		         AND ar.name = ?
-		         AND tar.is_primary_artist = 1
-		    )`,
-		inputTrack.MusicBrainzID,
-		inputTrack.Title,
-		inputTrack.PrimaryArtist,
+		  WHERE t.musicbrainz_id      = ?
+		    AND tar.is_primary_artist = 1`,
+		trackMBID,
 	)
-	if err != nil {
-		log.Fatal(err)
+
+	err := row.Scan(
+		existingTrack.InternalID,
+		existingTrack.MusicBrainzID,
+		existingTrack.Title,
+		existingTrack.PrimaryArtist.InternalID,
+		existingTrack.PrimaryArtist.MusicBrainzID,
+		existingTrack.PrimaryArtist.Name,
+	)
+	if err != nil && err != sql.ErrNoRows {
+		log.Fatalln(err)
+	} else if err == sql.ErrNoRows {
+		return track.Track{}
 	}
 
-	albums = map[string]bool{}
-	for rows.Next() {
-		var album string
-		if err = rows.Scan(
-			&trackID,
-			&primaryArtistID,
-			&album,
-		); err != nil {
-			log.Fatal(err)
-		}
-		albums[album] = true
-	}
-
-	// Get other artists for track
-	rows, err = db.Query(
-		`SELECT ar.name
-		   FROM artists ar
-		   JOIN track_artist tar ON tar.artist_id = ar.id
-		  WHERE tar.track_id = ?
+	// Get secondary artists
+	rows, err := db.Query(
+		`SELECT ar.id,
+		        ar.musicbrainz_id,
+		        ar.name
+		   FROM tracks       t
+		   JOIN track_artist tar ON tar.track_id = t.id
+		   JOIN artists      ar  ON ar.id = tar.artist_id
+		  WHERE t.musicbrainz_id      = ?
 		    AND tar.is_primary_artist = 0`,
-		trackID,
+		trackMBID,
 	)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalln(err)
 	}
 
-	otherArtists := map[string]bool{}
+	var artists []track.Artist
 	for rows.Next() {
-		var artist string
+		var artist track.Artist
+
 		if err = rows.Scan(
-			&artist,
+			artist.InternalID,
+			artist.MusicBrainzID,
+			artist.Name,
+		); err != nil {
+			log.Fatalln(err)
+		}
+
+		artists = append(artists, artist)
+	}
+
+	existingTrack.OtherArtists = artists
+
+	// Get albums
+	rows, err = db.Query(
+		`SELECT al.id,
+		        al.musicbrainz_id,
+		        al.title
+		   FROM tracks      t
+		   JOIN track_album tal ON tal.track_id = t.id
+		   JOIN albums      al  ON al.id        = tal.album_id
+		  WHERE t.musicbrainz_id = ?`,
+		trackMBID,
+	)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	var albums []track.Album
+	for rows.Next() {
+		var album track.Album
+
+		if err = rows.Scan(
+			&album.InternalID,
+			&album.MusicBrainzID,
+			&album.Title,
 		); err != nil {
 			log.Fatal(err)
 		}
-		otherArtists[artist] = true
+
+		albums = append(albums, album)
 	}
 
-	return trackID, primaryArtistID, albums, otherArtists
+	existingTrack.Albums = albums
+
+	return existingTrack
 }
